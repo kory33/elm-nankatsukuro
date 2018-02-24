@@ -98,7 +98,9 @@ view { inputName, obtainedUser } =
           [ toString user.itemsCount ++ " Contributions" |> text]
           ]
 
-        userDisplay = ul [] (map userToAttributeList obtainedUser |> withDefault [])
+        userDisplay = case obtainedUser of
+            Just user -> ul [] (userToAttributeList user)
+            Nothing -> ul [] []
     in
         div []
         [ input
