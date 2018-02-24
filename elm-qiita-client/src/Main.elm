@@ -1,46 +1,113 @@
 module Main exposing (..)
 
-import Html exposing (Html, text, div, h1, img)
-import Html.Attributes exposing (src)
+import Html exposing (Html, program, text, input, div, ul)
+import Html.Attributes exposing (placeholder, value)
+import Html.Events exposing (..)
+import Html.Events.Extra exposing (..)
 import Http
-import Json.Decode as Decode
+import Json.Decode exposing (int, Decoder)
+import Json.Decode.Pipeline exposing (decode, required, optional)
 import Json.Encode as Encode
+import Maybe exposing (withDefault, map)
 
+qiitaDomain =
+    "https://qiita.com/api/v2/"
 
 ---- MODEL ----
 
+{--
+
+-- This is the complete model...not necessary :p
+
+type alias QiitaUser =
+    { description : Maybe String
+    , facebookId : Maybe String
+    , followeesCount : Int
+    , followersCount : Int
+    , gitHubLoginName : Maybe String
+    , qiitaId : String
+    , itemsCount : Int
+    , linkedinId : Int
+    , location : Maybe String
+    , name : Maybe String
+    , organization : Maybe String
+    , permanentId : Int
+    , profileImageUrl : String
+    , twitterScreenName : Maybe String
+    , websiteUrl : Maybe String
+    }
+--}
+
+type alias QiitaUser =
+    { itemsCount : Int }
+
+decodeQiitaUser : Decoder QiitaUser
+decodeQiitaUser =
+    decode QiitaUser
+        |> required "items_count" int
+
+decodeQiitaUserList : Decoder (List QiitaUser)
+decodeQiitaUserList =
+    Json.Decode.list decodeQiitaUser
 
 type alias Model =
-    {}
+    { inputName : String
+    , obtainedUser : Maybe QiitaUser
+    }
 
 
 init : ( Model, Cmd Msg )
 init =
-    ( {}, Cmd.none )
-
+    ( Model "" Nothing , Cmd.none )
 
 
 ---- UPDATE ----
 
 
 type Msg
-    = NoOp
+    = InputUserName String
+    | GetUser
+    | QiitaUserReceived (Result Http.Error QiitaUser)
 
+getUser userId =
+    let
+       url = qiitaDomain ++ "/users/" ++ userId
+    in
+       Http.send QiitaUserReceived <| (Http.get url decodeQiitaUser)
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
-    ( model, Cmd.none )
-
-
+    case msg of
+        InputUserName input ->
+            ( { model | inputName = input}, Cmd.none )
+        GetUser ->
+            ( model, getUser model.inputName )
+        QiitaUserReceived (Ok user) ->
+            ( {model | obtainedUser = Just user}, Cmd.none )
+        QiitaUserReceived (Err e) ->
+            Debug.crash <| toString e
 
 ---- VIEW ----
 
 
 view : Model -> Html Msg
-view model =
-    div []
-        [ img [ src "/logo.svg" ] []
-        , h1 [] [ text "Your Elm App is working!" ]
+view { inputName, obtainedUser } =
+    let
+        userToAttributeList : QiitaUser -> List (Html msg)
+        userToAttributeList user = [ul []
+          [ toString user.itemsCount ++ " Contributions" |> text]
+          ]
+
+        userDisplay = ul [] (map userToAttributeList obtainedUser |> withDefault [])
+    in
+        div []
+        [ input
+          [ placeholder "User Name"
+          , value inputName
+          , onInput InputUserName
+          , onEnter GetUser
+          ] []
+        , userDisplay
         ]
 
 
@@ -57,72 +124,3 @@ main =
         , subscriptions = always Sub.none
         }
 
-
-
-{--
-
--- HTTP Reqeust (認証なし)
-
--- http://package.elm-lang.org/packages/elm-lang/core/5.1.1/Json-Decode
-
-decodeHoge : Decode.Decoder Hoge
-decodeHoge =
-    Decode.map3 Hoge
-        (Decode.at [ "id" ] Decode.int)
-        (Decode.at [ "name" ] Decode.string)
-        (Decode.at [ "job" ] Decode.string)
-
-decodeHogeList : Decode.Decoder (List Hoge)
-decodeHogeList =
-    Decode.list decodeHoge
-
-
-getHoge =
-    let
-       url = qiitaDomain ++ "/users/ababup1192"
-
-
-    in
-        Http.send msg <| (Http.get url decodeHogeList)
-
-
-qiitaDomain =
-    "https://qiita.com/api/v2/"
-
-
-authHeader =
-    Http.header "Authorization"
-        "Bearer YOUR_TOKEN"
-
-
-
--- HTTP Request (認証あり)
-
-
-getAuthHoge : Cmd Msg
-getAuthHoge =
-    let
-        url =
-            qiitaDomain ++ "/users/ababup1192"
-
-        -- POSTする必要がある場合には、jsonを生成してください。
-        -- jsonBody =
-        --    Http.jsonBody <| json
-        request =
-            Http.request
-                { method = "GET"
-                , headers = [ authHeader ]
-                , url = url
-
-                -- , body = jsonBody
-                , expect = Http.expectStringResponse (\_ -> Ok ())
-                , timeout = Nothing
-                , withCredentials = False
-                }
-    in
-        -- http://package.elm-lang.org/packages/elm-lang/http/1.0.0/Http#send
-        -- http://package.elm-lang.org/packages/elm-lang/core/latest/Result
-        -- Cmd Msg (Result Http.Error String)
-        Http.send msg request
-
- --}
